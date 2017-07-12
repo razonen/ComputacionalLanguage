@@ -1,0 +1,461 @@
+# -*- coding: 850 -*-
+#!/usr/bin/env python
+import os
+import sys
+###################   AUTHOR PROFILING
+
+#tratamiento del fichero xml
+def copiar_fichero(filename):
+	f =  open(filename,"r")
+	text = ""
+	for linea in f.readlines():
+		if  linea.find('CDATA[') > -1:
+				#numT = numT + 1
+				text = text + linea
+	f.close()
+	return text
+
+#inicializamos la matriz de variables
+def inicializa_matriz(fils, cols):
+	m = [None] * fils
+	for i in range(fils):
+		m[i] = [None] * cols
+	return m
+
+#contamos el numero de tweets que tiene el archivo
+def cuenta_num_tweets(string):
+	numT = 0 
+	for linea in string.split('\n'):
+		if linea.find('CDATA[') > -1:
+			numT = numT + 1
+	return numT
+
+def linea_valida(linea):
+	vale = False 
+	if  linea.find('CDATA[') > -1 :
+		vale = True
+	return vale
+
+def filtrar_linea(linea):
+	#print "TWEET SIN FILTRAR"
+	#print linea
+	tweet = ""
+	num  = -1
+	num = linea.find('CDATA[')
+
+	#if linea.find('</document>') > -1 :
+	#	num2 = linea.find('</document>')
+	ind = 1
+	linea2 = linea[num+6:]
+	num2 = num+6
+	for l in linea2:
+		if l == '[':
+			ind += 1
+		elif l == ']':
+			ind -=1
+		if ind == 0:
+			break
+		num2 += 1
+	if num > -1 and num2 > -1:
+		num = num + 6 
+		num2 = num2 
+		tweet = linea[num:num2]
+	#print "TWEET FILTRADO: "
+	#print tweet
+	return tweet
+
+def contar_referecias(tweet):
+	num = tweet.count("<a" or "<img" or "<![C")
+	return num
+
+def quitar_referencias(tweet):
+	valor = 0
+	newTweet = ""
+	for p in range(len(tweet)):
+		if tweet[p] == '<':
+			valor += 1
+		elif tweet[p] == '>':
+			valor -= 1
+		elif valor == 0:
+			newTweet = newTweet + tweet[p]
+	#print "OLD"
+	#print tweet
+	#print "NEW"
+	#print newTweet
+	return newTweet
+
+def quitar_signos(tweet):
+	punt = (',' , '.' , ':','[',']','(',')','-','--',';','!','','?','\"','\'','\`','\'\'', '``','`', '\n')
+	punt = punt + ('@','#','&')
+	new_str = ""
+	for w in tweet:
+		if w not in punt:
+			#print ("letra aceptada:[{}]".format(w) )
+			new_str = new_str + w.lower()
+	return new_str
+
+
+def numero_palabras(tweet):
+		cadena = tweet.split()
+		num_de_palabras = len(cadena)
+		return num_de_palabras	
+
+def numero_caracteres(tweet):
+		cadena = tweet.split()
+		num_de_caract = 0
+		for x in cadena:
+			num_de_caract = num_de_caract +  len(x)
+		return num_de_caract	
+
+def rellena_matriz(m, palabras_totales, caracteres_totales, numero_d_refer, numT, numTweets, tweet):
+
+	m[numT][0] = palabras_totales
+	m[numT][1] = caracteres_totales
+	m[numT][2] = numero_d_refer
+	return  m
+
+def contiene_tweets(ruta):
+	texto = copiar_fichero(ruta)
+	numero = cuenta_num_tweets(texto)
+	return numero
+
+def obtener_genero(rutaSol, perfil):
+
+	f =  open(rutaSol,"r")
+	texto = ""
+	for linea in f.readlines():
+		texto = texto + linea
+	f.close()
+	existePerfil = False
+	genero = ""
+	for linea in texto.split('\n'):
+		if linea.find(perfil) > -1 :
+			existePerfil = True
+			if linea.find("FEMALE") > -1:
+				genero = "FEMALE"
+			else:
+				genero =  "MALE"
+	if existePerfil == True :
+		return genero
+	else:
+		print (" NO ES MALE ni FEMALE, error")
+		return "NO MALE NO FEMALE"
+
+def obtener_edad(rutaSol, perfil):
+
+	f =  open(rutaSol,"r")
+	texto = ""
+	for linea in f.readlines():
+		texto = texto + linea
+	f.close()
+	existePerfil = False
+	edad = ""
+	for linea in texto.split('\n'):
+		if linea.find(perfil) > -1 :
+			existePerfil = True
+			if linea.find("18-24") > -1:
+				edad = "18-24"
+			elif linea.find("25-34") > -1:
+				edad = "25-34"
+			elif linea.find("35-49") > -1:
+				edad = "35-49"
+			elif linea.find("50-64") > -1:
+				edad = "50-64"
+			elif linea.find("65-xx") > -1:
+				edad = "65-xx"
+
+	if existePerfil == True :
+		return edad
+	else:
+		print (" THERE IS NOT AGE, error")
+		return "NO AGE"
+
+def rellena_vector (diccionar, palabras_totales):
+	ind = 0 
+	sumatorio = 0  
+	vector_final = [0]*len(diccionario_general)
+	for bigrama in diccionario_general:
+		if bigrama in diccionar:
+			sumatorio += 1
+			vector_final[ind] = round ( (diccionar[bigrama]+1) / palabras_totales  , 7 )
+		else:
+			vector_final[ind] = 0
+		ind = ind + 1
+	#print ("sumatorio de palabras = ", sumatorio)
+	#print ("len(diccionar) = ", len(diccionar))
+	return vector_final
+
+
+def rellena_diccionario (tweet, diccionar):
+	tweet_list = tweet.split(" ")
+	longit = len(tweet_list)
+	for j in range (longit):
+		if j == 0:
+			bigrama = ('<S>',tweet_list[j])
+			if bigrama not in diccionar:
+				diccionar[bigrama] = 1
+			else:
+				diccionar[bigrama] += 1
+		elif j == longit-1:
+			bigrama = ('</S>',tweet_list[j])
+			if bigrama not in diccionar:
+				diccionar[bigrama] = 1
+			else:
+				diccionar[bigrama] += 1
+		else:
+			bigrama = (tweet_list[j], tweet_list[j+1])
+			if bigrama not in diccionar:
+				diccionar[bigrama] = 1
+			else:
+				diccionar[bigrama] += 1
+	return diccionar
+
+##################################################################################
+
+def profile_xml (archivo):
+	diccionar = {}
+	texto = copiar_fichero(archivo)
+	numTweets = cuenta_num_tweets(texto)
+	#print ("{}  ---->>>  tiene {} tweets".format(archivo, numTweets) )
+	m = inicializa_matriz(numTweets,3)
+	palabras_totales = 1.0
+	caracteres_totales = 0.0
+	referencias_totales = 0.0
+	numT = 0.0
+	for linea in texto.split('\n'):
+		if (linea_valida(linea)):
+			tweet = filtrar_linea(linea)
+			numero_d_refer = contar_referecias(tweet)
+			tweet = quitar_referencias(tweet)
+			tweet = quitar_signos(tweet)
+			num_de_palabras = numero_palabras(tweet)
+			num_de_caracteres = numero_caracteres(tweet)
+			if num_de_palabras > 3:
+				rellena_diccionario (tweet, diccionar)
+				palabras_totales = num_de_palabras + palabras_totales +1
+				caracteres_totales = num_de_caracteres + caracteres_totales
+				referencias_totales =  numero_d_refer + referencias_totales
+				numT = numT + 1
+				riqueza_diccionario = 0
+				for p in diccionar:
+					riqueza_diccionario = riqueza_diccionario + diccionar[p]
+				#if (palabras_totales !=  riqueza_diccionario ):
+					#print ("totales: {}  riqueza_diccionario {}: ".format(palabras_totales, riqueza_diccionario ))
+					#print (diccionar)
+					#sys.stderr("ERROR ERROR ERROR TYPE 1")
+	riqueza_vocabulario = 0.0
+	total = 0.0
+	riqueza_vocabulario = len(diccionar)
+	vector_final = rellena_vector(diccionar, palabras_totales )
+	for elem in vector_final:
+		total += elem
+
+	#print (len(vector_final))
+	if numT == 0:
+		numT =1.0
+		referencias_totales = 0.0
+		palabras_totales = 1.0
+		caracteres_totales = 0.0
+		riqueza_diccionario = 0.0
+
+
+	vector_final.append( round( referencias_totales/numT , 5)   )
+	vector_final.append( round( palabras_totales/numT ,5  ) )
+	vector_final.append( round ( caracteres_totales/numT , 5 ) )
+	vector_final.append( round ( riqueza_vocabulario/palabras_totales , 5 ) )
+	#print ("************ DICCIONARIO ************")
+	return vector_final
+#######################################################################################
+
+def show_a_xml_file(direccion_base):
+
+	contador = 0
+	muestra = ""
+	for base, dirs, files in os.walk(direccion_base):	
+		for i in files:
+			
+			if i[-5:].find('xml') > -1:
+				muestra = i
+				contador += 1
+	print ("NUMBER OF FILES with XML extension: {}".format(contador) )
+	if contador > 0 :
+		print ("SHOWING HEAD OF 1ST FILE: ")
+		command = "head -n 7 " + direccion_base + muestra
+		print command
+		os.system(command)
+			
+
+#######################################################################################
+
+def crear_matriz_caracteristicas(direccion_base):
+	i = 0
+	numFiles = 0
+	for base, dirs, files in os.walk(direccion_base):
+		numFiles = numFiles + 1
+	if numFiles < 1:
+		print ("ERROR, DIRECTORY with 0 files")
+		return 0
+
+	for base, dirs, files in os.walk(direccion_base):
+
+		print ("NUMBER OF FILES: {}".format(len(files) ) ) 
+		num_files =  0
+		num_files = len(files)
+		q = 0
+		for i in files:
+			q += 1
+			if q ==  (num_files)/4 :
+				print (" 25%_ processed")			
+			elif q ==  (num_files)/2 :
+				print (" 50%_ processed")
+			elif q ==  (num_files)*3/4 :
+				print (" 75%_ processed")
+			ruta = direccion_base + i
+			number = contiene_tweets(ruta)
+			if number > 0:
+				#if q < 5 :
+				print ("  this URL has {} tweets: {}".format(number, ruta))
+				#if q == 5:
+				#	print ("(and more...) ")		
+				vectorID = profile_xml(ruta)
+				vectorID.insert(0,i[:-4])
+				matriz.append(vectorID)
+			else:
+				print ("  this URL has NOT any tweet: {}".format(ruta))
+		print (" 100%_ processed")
+	numF = len(matriz)
+	if numF ==0:
+		show_a_xml_file(direccion_base)
+		sys.exit("ERROR: FEATURE MATRIX IS EMPTY ")
+
+	numC = len(matriz[0])
+	print (" MATRIZ SIMPLIFICADA: {} x {} ".format(numC, numF ))
+	s=0
+	for fil in matriz :
+		if s < 5 :
+			print (fil[0],"...",fil[1],fil[2],fil[3],"...",fil[numC-10],fil[numC-9],fil[numC-8],fil[numC-7],"...",fil[numC-6],fil[numC-5],fil[numC-4],fil[numC-3],fil[numC-2],fil[numC-1])
+		elif s == 5:
+			print ("(and so on...)")
+		s += 1
+
+################################################################################
+
+def create_dir_output(output):
+	dir1 = output
+	if os.path.isdir(dir1) == True:
+		for base, dirs, files in os.walk(dir1):
+			for f in files:
+				#print ("f = ", f)
+				os.remove(dir1 + f)
+		os.rmdir(dir1)
+		os.mkdir(dir1)
+		print(" {} already exists, so we remove it".format(dir1))
+		print (" {} created as new".format(dir1))	
+	else:
+		os.mkdir(dir1)
+		print ("{} created".format(dir1))
+####################################################################################
+
+def test(matriz, dirOutput, inputRun):
+	from sklearn import svm
+	from sklearn import datasets
+	from sklearn.externals import joblib
+
+	print (" START Test for GENDER")
+	pathML = inputRun + 'ML_spanish_GENDER/ml.pkl'
+	clf = joblib.load(pathML) 
+	Test = [col[1:] for col in matriz]
+	prediction_gender = clf.predict(Test)
+	print (" FINISH Test for GENDER")
+	print ("***")
+
+	print (" START Test for AGE")
+	pathML = inputRun + 'ML_spanish_AGE/ml.pkl'
+	clf = joblib.load(pathML) 
+	prediction_age = clf.predict(Test)
+	print (" FINISH Test for AGE")
+	print ("***")
+
+	print ("START write results in {} directory ".format( dirOutput ) )
+	path = dirOutput + '/'
+	create_dir_output(path)
+	if (os.path.exists(path) == False):
+		print ( "ERROR ERROR ERROR : {} does not EXIST".format(path) )
+		sys.exit("ERROR ERROR ERROR : Directory for Output does not EXIST")
+	print ("OUTPUT directory = {}".format(path) )
+	for k in range(len(matriz)):
+		#print ""
+		name_file = path + matriz[k][0] + ".xml"
+		archi = open(name_file,'w')
+		contenido =  (" <author id=\"{}\" \n type=\"not relevant\"\n lang=\"es\"\n age_group=\"{}\" \n gender=\"{}\"/>\n".format(matriz[k][0], prediction_age[k] , prediction_gender[k] )  )
+		if k < 2 :
+			print contenido
+		elif k == 3:
+			print (" (2 examples of output files xml)")
+		archi.write(contenido)
+		archi.close()
+	print ("FINISH write results in {}".format(dirOutput))
+################################################################################################
+
+def rellena_dic_gen(fichero):
+
+	print ("START  recuperamos el  diccionario_general")
+	f =  open(fichero,"r")
+	for linea in f.readlines():
+		linea = linea[:-1]
+		bigrama = linea.split(" ")
+		bigrama = (bigrama[0],bigrama[1])
+		#print ("linea: ", linea)
+		#print ("bigrama: ", bigrama)
+		#if palabra != '\n':
+		diccionario_general[bigrama] = 1
+	f.close()
+	#print diccionario_general
+	print ("END   diccionario_general recuperado **** {} bigramas diferentes".format(len(diccionario_general) ) )
+	return 1
+
+#######################################################################################################
+
+#### MAIN ###
+print len(sys.argv)
+if len(sys.argv)  == 7:
+	if (sys.argv[1] == '-c' and sys.argv[3] == '-i' and sys.argv[5] == '-o'):  
+		diccionario_general = {}
+		inputDataset = sys.argv[2] + '/'
+		inputRun = sys.argv[4] +'/'
+		outputDir = sys.argv[6] + '/'
+		command  = "mkdir -p " + outputDir
+		print (command)
+		os.system(command)
+		if ( os.path.exists(inputRun) == False ):
+			sys.exit("ERROR: there is not any '$inputRun' : {}".format(inputRun) )
+		else:
+			#comando = "tar -xvf " + inputRun  
+			#print comando
+			#os.system(comando)
+			#inputRun = inputRun[:-4] + '/'
+			#print "*************"  
+			#print inputRun
+			print "OK inputRun: {}".format(inputRun)
+		if  os.path.exists(inputDataset) == False :
+			sys.exit("ERROR: there is not Directory of '$inputDataset/' ".format(outputDir))
+		else:
+			pathDict = inputRun + "/dic_spa.txt"
+			if ( os.path.exists(pathDict) == False ):
+				sys.exit("ERROR: there is not a dictionary on {} ".format(pathDict))
+			else:	
+				if (rellena_dic_gen( pathDict ) == 1):
+					matriz = []
+					crear_matriz_caracteristicas(inputDataset)
+					if len(matriz) > 1:
+						test(matriz, outputDir, inputRun ) 
+					else :
+						sys.exit("THRE IS NOT DATA FOR TEST IN THIS DIRECTORY")
+				else:
+					sys.exit("ERROR ERROR ERROR : rellena_dic() DOES NOT GET ANY WORD FROM THE supossed DICT ")
+	else:
+		print ("ERROR INPUT")
+		print ("To execute Spanish test script: 'python TestSpanish8.py  -c $inputDataset -i $inputRun -o $outputDir" ) 
+else:
+	print ("ERROR INPUT")
+	print ("To execute Spanish test script: 'python TestSpanish8.py  -c $inputDataset -i $inputRun -o $outputDir" )
